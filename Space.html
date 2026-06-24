@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Micro 5,000 – Space Survival</title>
+    <style>
+        :root {
+            --bg-deep: #05051a; --gold: #ffd700; --neon: #00ffff;
+            --text-primary: #e8e8f0; --text-secondary: #b0b0c0;
+            --font-main: 'Segoe UI', system-ui, sans-serif;
+            --shadow-neon: 0 0 25px rgba(0, 255, 255, 0.5);
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: var(--font-main); background: var(--bg-deep); color: var(--text-primary); min-height: 100vh; overflow: hidden; touch-action: none; }
+        #titleScreen, #difficultyScreen {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: radial-gradient(circle at center, #0a0a2e 0%, #020210 100%);
+            display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 200;
+        }
+        #difficultyScreen { display: none; }
+        #titleScreen h1, #difficultyScreen h2 { font-size: 3rem; color: var(--neon); text-shadow: 0 0 30px var(--neon); margin-bottom: 20px; }
+        #titleScreen p { color: var(--text-secondary); margin-bottom: 30px; font-size: 1.2rem; }
+        .btn-start, .btn-difficulty {
+            padding: 15px 40px; font-size: 1.3rem; border-radius: 30px; border: 2px solid var(--gold);
+            background: transparent; color: var(--gold); cursor: pointer; font-weight: 700; margin: 10px; transition: 0.3s;
+        }
+        .btn-start:hover, .btn-difficulty:hover { background: var(--gold); color: #000; box-shadow: var(--shadow-neon); }
+        .btn-upgrade {
+            padding: 12px 30px; font-size: 1rem; border-radius: 25px; border: 2px solid #ff00ff;
+            background: transparent; color: #ff00ff; cursor: pointer; font-weight: 700; margin: 15px; transition: 0.3s;
+        }
+        .btn-upgrade:hover { background: #ff00ff; color: #000; box-shadow: 0 0 25px rgba(255,0,255,0.5); }
+        .top-bar {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 100; display: none;
+            justify-content: space-between; align-items: center; padding: 10px 16px;
+            background: rgba(0,0,0,0.9); border-bottom: 1px solid rgba(255,255,255,0.08); flex-wrap: wrap;
+        }
+        .top-bar span { color: var(--gold); font-weight: 700; }
+        #gameCanvas { display: none; background: #000; margin: 50px auto 0; border: 2px solid var(--neon); border-radius: 8px; box-shadow: var(--shadow-neon); }
+        #shopOverlay, #autopilotOverlay, #winOverlay, #pauseMenu, #loadingScreen {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+            background: rgba(0,0,0,0.95); border: 2px solid var(--neon); border-radius: 15px;
+            padding: 20px; z-index: 20; display: none; max-width: 400px; color: white; text-align: center;
+        }
+        #loadingScreen { border-color: #ff00ff; box-shadow: 0 0 40px rgba(255,0,255,0.6); z-index: 25; }
+        .btn { padding: 8px 18px; border-radius: 20px; border: 1px solid var(--neon); background: transparent; color: var(--neon); cursor: pointer; font-family: var(--font-main); margin: 5px; transition: 0.3s; }
+        .btn:hover { background: var(--neon); color: #000; box-shadow: var(--shadow-neon); }
+        .btn-gold { border-color: var(--gold); color: var(--gold); }
+        .btn-gold:hover { background: var(--gold); color: #000; }
+        #timerHUD { color: var(--gold); font-weight: 700; margin-left: 10px; }
+        #upgradePrompt {
+            position: absolute; bottom: 80px; left: 50%; transform: translateX(-50%);
+            background: rgba(0,0,0,0.85); border: 2px solid #ff00ff; border-radius: 15px;
+            padding: 15px 25px; z-index: 15; text-align: center; display: none;
+        }
+        .loading-bar { width: 100%; height: 20px; background: #111; border-radius: 10px; margin: 15px 0; overflow: hidden; border: 2px solid #ff00ff; }
+        .loading-fill { height: 100%; width: 0%; background: linear-gradient(90deg, #ff00ff, #00ffff); border-radius: 8px; box-shadow: 0 0 15px rgba(255,0,255,0.7); }
+    </style>
+</head>
+<body>
+
+<div id="titleScreen">
+    <h1>Micro 5,000</h1>
+    <p>Space Survival</p>
+    <button class="btn-start" onclick="chooseMode('basic')">🟢 Basic Mode</button>
+    <button class="btn-start" onclick="chooseMode('full')">🔴 Full Game</button>
+</div>
+
+<div id="difficultyScreen">
+    <h2>Choose Difficulty</h2>
+    <button class="btn-difficulty" onclick="startGame('easy')">🟢 Easy</button>
+    <button class="btn-difficulty" onclick="startGame('mid')">🟡 Medium</button>
+    <button class="btn-difficulty" onclick="startGame('hard')">🔴 Hard</button>
+</div>
+
+<div class="top-bar" id="topBar">
+    <span id="moneyDisplay">💰 $0</span><span id="healthDisplay">❤️ 100%</span><span id="waveDisplay">🌊 Wave 1/100</span><span id="timerHUD"></span>
+    <span id="fullActions" style="display:none;">
+        <button class="btn" onclick="openShop()">🛒 Shop</button>
+        <button class="btn" onclick="openAutopilot()">⚙️ Autopilot</button>
+        <button class="btn" onclick="restartWave()">🔄 Restart</button>
+        <button class="btn" onclick="togglePause()">⏯️ Pause</button>
+    </span>
+</div>
+
+<canvas id="gameCanvas"></canvas>
+
+<div id="loadingScreen">
+    <h2 style="color:#ff00ff; text-shadow: 0 0 20px #ff00ff;">⬆️ Upgrading to Full Game</h2>
+    <div class="loading-bar"><div class="loading-fill" id="loadingFill"></div></div>
+    <p id="loadingPercent" style="color:#00ffff; font-size: 1.2rem;">0%</p>
+</div>
+
+<div id="upgradePrompt">
+    <p style="color: #ff00ff; margin-bottom: 10px;">Want more features?</p>
+    <button class="btn-upgrade" onclick="startUpgrade()">⬆️ Upgrade to Full Game</button>
+</div>
+
+<div id="shopOverlay"><h3>🛒 Shop</h3><p id="shopMoney"></p><div id="shopItems"></div><button class="btn" onclick="closeShop()">Close</button></div>
+<div id="autopilotOverlay"><h3>⚙️ Autopilot</h3><div id="autopilotSlots"></div><button class="btn" onclick="closeAutopilot()">Close</button></div>
+<div id="winOverlay"><h2>🏆 YOU WON!</h2><button class="btn btn-gold" onclick="closeWin()">Continue</button></div>
+<div id="pauseMenu"><h2>⏯️ Paused</h2><button class="btn btn-gold" onclick="togglePause()">▶ Continue</button></div>
+
+<script>
+const S = {
+    money: 0, health: 100, maxHealth: 100, shield: 0, maxShield: 50,
+    wave: 1, maxWaves: 100, playerX: 400, playerY: 500,
+    moveLeft: false, moveRight: false, moveUp: false, moveDown: false,
+    bullets: [], enemies: [], enemyBullets: [], explosions: [],
+    weapons: [
+        { name: "Laser", level: 1, damage: 10, fireRate: 12, cost: 0, owned: true, autopilot: false },
+        { name: "Plasma", level: 2, damage: 30, fireRate: 10, cost: 5000, owned: false, autopilot: false },
+        { name: "Ion", level: 3, damage: 60, fireRate: 8, cost: 50000, owned: false, autopilot: false },
+        { name: "Quantum", level: 4, damage: 120, fireRate: 6, cost: 500000, owned: false, autopilot: false },
+        { name: "Neutron", level: 5, damage: 250, fireRate: 4, cost: 10000000, owned: false, autopilot: false }
+    ],
+    autopilotActive: false, fireCooldown: 0, micro5000Owned: false,
+    gameOver: false, paused: false, waveTimer: 0, betweenWaves: false,
+    difficulty: 'easy', gameMode: 'basic', enemiesShoot: false,
+    hasAutopilot: false, hasPause: false, hasRestart: false, hasShop: true,
+    upgrading: false, upgradeInterval: null
+};
+
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+canvas.width = 800; canvas.height = 600;
+
+function getBreakTime() { return S.difficulty === 'easy' ? 300 : S.difficulty === 'mid' ? 420 : 600; }
+
+function spawnEnemy() {
+    const x = Math.random() * (canvas.width - 40) + 20;
+    S.enemies.push({ x, y: -30, w: 30, h: 30, hp: 20 + S.wave * 5, speed: 0.5 + S.wave * 0.1, shootTimer: 9999 });
+}
+
+function spawnWaveEnemies() { const count = 3 + S.wave; for (let i = 0; i < count; i++) spawnEnemy(); }
+
+function startNextWave() {
+    if (S.wave >= S.maxWaves) { alert('🏆 YOU SURVIVED 100 WAVES! You earned $5,000,000,000!'); S.paused = true; return; }
+    S.wave++; S.health = S.maxHealth; spawnWaveEnemies();
+    S.betweenWaves = false; document.getElementById('timerHUD').textContent = ''; updateHUD();
+}
+
+function startUpgrade() {
+    document.getElementById('upgradePrompt').style.display = 'none';
+    document.getElementById('loadingScreen').style.display = 'block';
+    S.upgrading = true;
+    let progress = 0;
+    document.getElementById('loadingFill').style.width = '0%';
+    document.getElementById('loadingPercent').textContent = '0%';
+    S.upgradeInterval = setInterval(() => {
+        progress++;
+        document.getElementById('loadingFill').style.width = progress + '%';
+        document.getElementById('loadingPercent').textContent = progress + '%';
+        if (progress >= 100) {
+            clearInterval(S.upgradeInterval);
+            finishUpgrade();
+        }
+    }, 1000);
+}
+
+function finishUpgrade() {
+    S.gameMode = 'full'; S.enemiesShoot = true; S.hasAutopilot = true; S.hasPause = true; S.hasRestart = true;
+    S.weapons = [
+        { name: "Laser Cannon", level: 1, damage: 10, fireRate: 15, cost: 0, owned: true, autopilot: false },
+        { name: "Plasma Blaster", level: 2, damage: 25, fireRate: 12, cost: 500000, owned: false, autopilot: false },
+        { name: "Ion Disruptor", level: 3, damage: 50, fireRate: 10, cost: 5000000, owned: false, autopilot: false },
+        { name: "Quantum Beam", level: 4, damage: 100, fireRate: 8, cost: 50000000, owned: false, autopilot: false },
+        { name: "Neutron Cannon", level: 5, damage: 250, fireRate: 5, cost: 100000000000, owned: false, autopilot: false }
+    ];
+    document.getElementById('fullActions').style.display = 'inline';
+    document.getElementById('loadingScreen').style.display = 'none';
+    S.upgrading = false;
+    updateHUD();
+}
+
+function update() {
+    if (S.upgrading || S.gameOver || S.paused) return;
+    if (S.betweenWaves) { S.waveTimer--; if (S.waveTimer <= 0) startNextWave(); return; }
+    const spd = 4;
+    if (S.moveLeft) S.playerX = Math.max(20, S.playerX - spd);
+    if (S.moveRight) S.playerX = Math.min(canvas.width - 20, S.playerX + spd);
+    if (S.moveUp) S.playerY = Math.max(20, S.playerY - spd);
+    if (S.moveDown) S.playerY = Math.min(canvas.height - 20, S.playerY + spd);
+    if (S.fireCooldown <= 0) { S.bullets.push({ x: S.playerX, y: S.playerY - 20, dmg: 10 }); S.fireCooldown = 8; }
+    S.fireCooldown--;
+    S.bullets = S.bullets.filter(b => b.y > -10); S.bullets.forEach(b => b.y -= 8);
+    S.enemies.forEach(e => { e.y += e.speed; });
+    for (let bi = S.bullets.length - 1; bi >= 0; bi--) { const b = S.bullets[bi]; let hit = false; for (let ei = S.enemies.length - 1; ei >= 0; ei--) { const e = S.enemies[ei]; if (Math.abs(b.x - e.x) < 20 && Math.abs(b.y - e.y) < 20) { e.hp -= b.dmg; hit = true; if (e.hp <= 0) { S.money += 100; S.explosions.push({ x: e.x, y: e.y, t: 10 }); S.enemies.splice(ei, 1); } break; } } if (hit) S.bullets.splice(bi, 1); }
+    for (let ei = S.enemies.length - 1; ei >= 0; ei--) { const e = S.enemies[ei]; if (Math.abs(e.x - S.playerX) < 25 && Math.abs(e.y - S.playerY) < 25) { S.health -= 20; S.enemies.splice(ei, 1); if (S.health <= 0) { alert('Game Over! Refresh to restart.'); S.paused = true; } } }
+    S.explosions = S.explosions.filter(e => e.t > 0); S.explosions.forEach(e => e.t--);
+    if (S.enemies.length === 0 && !S.betweenWaves) { S.betweenWaves = true; S.waveTimer = getBreakTime(); }
+    updateHUD();
+    if (S.gameMode === 'basic' && S.wave % 5 === 0 && S.enemies.length === 0 && !S.betweenWaves) document.getElementById('upgradePrompt').style.display = 'block';
+}
+
+function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = 'white'; for (let i = 0; i < 80; i++) ctx.fillRect((i*137)%canvas.width, (i*251+S.wave*5)%canvas.height, 2, 2);
+    ctx.fillStyle = '#00ffff'; ctx.shadowBlur = 15; ctx.shadowColor = '#00ffff';
+    ctx.beginPath(); ctx.moveTo(S.playerX, S.playerY-18); ctx.lineTo(S.playerX-12, S.playerY+12); ctx.lineTo(S.playerX+12, S.playerY+12); ctx.fill(); ctx.shadowBlur = 0;
+    S.bullets.forEach(b => { ctx.fillStyle = '#00ffff'; ctx.shadowBlur = 8; ctx.shadowColor = '#00ffff'; ctx.fillRect(b.x-1, b.y-8, 3, 16); ctx.fillStyle = '#fff'; ctx.shadowBlur = 0; ctx.fillRect(b.x-0.5, b.y-6, 1, 12); });
+    S.enemies.forEach(e => { ctx.fillStyle = '#ff8800'; ctx.fillRect(e.x-e.w/2, e.y-e.h/2, e.w, e.h); });
+    S.explosions.forEach(e => { ctx.fillStyle = `rgba(255,200,0,${e.t/10})`; ctx.beginPath(); ctx.arc(e.x, e.y, 15-e.t, 0, Math.PI*2); ctx.fill(); });
+}
+
+function updateHUD() {
+    document.getElementById('moneyDisplay').textContent = '💰 $' + S.money.toLocaleString();
+    document.getElementById('healthDisplay').textContent = '❤️ ' + S.health + '%';
+    document.getElementById('waveDisplay').textContent = '🌊 Wave ' + S.wave + '/' + S.maxWaves;
+}
+
+function openShop() { S.paused = true; document.getElementById('shopMoney').textContent = '💰 $' + S.money.toLocaleString(); let h = ''; S.weapons.forEach((w, i) => { if (w.owned) h += `<p>✅ ${w.name}</p>`; else h += `<p>🔫 ${w.name} — $${w.cost.toLocaleString()} <button class="btn" onclick="buyWeapon(${i})">Buy</button></p>`; }); document.getElementById('shopItems').innerHTML = h; document.getElementById('shopOverlay').style.display = 'block'; }
+function closeShop() { document.getElementById('shopOverlay').style.display = 'none'; S.paused = false; }
+function buyWeapon(i) { if (S.money >= S.weapons[i].cost) { S.money -= S.weapons[i].cost; S.weapons[i].owned = true; } openShop(); }
+function openAutopilot() { S.paused = true; document.getElementById('autopilotOverlay').style.display = 'block'; }
+function closeAutopilot() { document.getElementById('autopilotOverlay').style.display = 'none'; S.paused = false; }
+function restartWave() { S.enemies = []; S.bullets = []; S.health = S.maxHealth; S.betweenWaves = false; spawnWaveEnemies(); updateHUD(); }
+function togglePause() { S.paused = !S.paused; document.getElementById('pauseMenu').style.display = S.paused ? 'block' : 'none'; }
+function closeWin() { document.getElementById('winOverlay').style.display = 'none'; S.paused = false; }
+
+document.addEventListener('keydown', e => { if (S.paused || S.upgrading) return; if (e.key === 'ArrowLeft' || e.key === 'a') S.moveLeft = true; if (e.key === 'ArrowRight' || e.key === 'd') S.moveRight = true; if (e.key === 'ArrowUp' || e.key === 'w') S.moveUp = true; if (e.key === 'ArrowDown' || e.key === 's') S.moveDown = true; });
+document.addEventListener('keyup', e => { if (e.key === 'ArrowLeft' || e.key === 'a') S.moveLeft = false; if (e.key === 'ArrowRight' || e.key === 'd') S.moveRight = false; if (e.key === 'ArrowUp' || e.key === 'w') S.moveUp = false; if (e.key === 'ArrowDown' || e.key === 's') S.moveDown = false; });
+canvas.addEventListener('touchmove', e => { const t = e.touches[0]; const r = canvas.getBoundingClientRect(); S.playerX = t.clientX - r.left; S.playerY = t.clientY - r.top; e.preventDefault(); });
+
+function chooseMode(mode) {
+    S.gameMode = mode;
+    if (mode === 'basic') { S.enemiesShoot = false; S.hasAutopilot = false; S.hasPause = false; S.hasRestart = false; document.getElementById('fullActions').style.display = 'none'; }
+    else { S.enemiesShoot = true; S.hasAutopilot = true; S.hasPause = true; S.hasRestart = true; document.getElementById('fullActions').style.display = 'inline'; }
+    document.getElementById('titleScreen').style.display = 'none'; document.getElementById('difficultyScreen').style.display = 'flex';
+}
+
+function startGame(diff) {
+    S.difficulty = diff; document.getElementById('difficultyScreen').style.display = 'none';
+    document.getElementById('topBar').style.display = 'flex'; canvas.style.display = 'block';
+    S.health = S.maxHealth; S.wave = 1; S.money = 0; S.enemies = []; S.bullets = [];
+    spawnWaveEnemies(); updateHUD();
+    if (!window._l) { window._l = true; function loop() { update(); draw(); requestAnimationFrame(loop); } loop(); }
+}
+window._l = false;
+</script>
+</body>
+</html>
